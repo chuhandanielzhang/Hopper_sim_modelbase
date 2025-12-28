@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-MuJoCo "fake robot" process that exposes the same *LCM-shaped* IO as the real hopper.
+MuJoCo "fake robot" process that exposes the same IO channels as the real hopper **using real MIT LCM**.
 
 Publishes (sensor side):
 - `hopper_data_lcmt` : q, qd, tauIq
@@ -10,9 +10,8 @@ Subscribes (command side):
 - `hopper_cmd_lcmt`  : tau_ff (applied as joint torques)
 - `motor_pwm_lcmt`   : 6-channel PWM (mapped -> thrust via MotorTableModel), `control_mode` gates output
 
-NOTE:
-- Uses `Hopper-modee-clean/lcm.py` which is a **fake** transport (UDP multicast framing),
-  not wire-compatible with the real MIT LCM. Both ends must use this repo's `lcm.py`.
+Requires:
+- `lcm` Python bindings installed (MIT LCM).
 """
 
 from __future__ import annotations
@@ -31,7 +30,7 @@ sys.path.insert(0, os.path.join(PROJECT_ROOT, "utils"))
 sys.path.insert(0, os.path.join(PROJECT_ROOT, "controllers"))
 sys.path.insert(0, os.path.join(PROJECT_ROOT, "lcm_types"))
 
-import lcm  # noqa: E402 (local fake lcm.py)
+import lcm  # noqa: E402
 
 from utils.mujoco_interface import MuJoCoInterface  # noqa: E402
 from controllers.motor_utils import MotorTableModel  # noqa: E402

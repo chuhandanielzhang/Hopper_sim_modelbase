@@ -32,10 +32,10 @@ Outputs:
 - `videos/modee/*_h264.mp4`
 - `videos/modee/*.csv`
 
-## Fake LCM IO (MuJoCo “looks like hardware”)
+## LCM IO (MuJoCo “looks like hardware”)
 
-This repo includes a **fake `lcm` module** (`lcm.py`) and the matching generated message classes under `lcm_types/`.
-This is useful when you want to make the MuJoCo side publish the same messages as the real robot:
+This repo uses the **real MIT LCM** Python bindings (`import lcm`) and the matching generated message classes under `lcm_types/`.
+This is useful when you want the MuJoCo side to publish the same messages as the real robot:
 
 ```bash
 python scripts/mujoco_lcm_fake_robot.py --duration_s 20

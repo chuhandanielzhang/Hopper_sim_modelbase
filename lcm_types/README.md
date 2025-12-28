@@ -2,7 +2,7 @@
 
 These message classes mirror the real-robot message definitions under `Hopper-aero/hopper_lcm_types/`.
 
-They are used by the **fake LCM** transport (`Hopper-modee-clean/lcm.py`) so that MuJoCo IO can look like:
+They are used with the **real MIT LCM** Python bindings (`import lcm`) so that MuJoCo IO can look like:
 - `hopper_data_lcmt` (joint pos/vel/torque)
 - `hopper_imu_lcmt` (quat/gyro/acc/rpy)
 - `hopper_cmd_lcmt` (torque command)
