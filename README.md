@@ -45,4 +45,19 @@ Then, in another process, you can subscribe/publish on:
 - `hopper_data_lcmt`, `hopper_imu_lcmt` (sensor)
 - `hopper_cmd_lcmt`, `motor_pwm_lcmt` (command)
 
+### Installing real `lcm` (if needed)
+
+If `python -c "import lcm"` fails, you can build & install MIT LCM (with Python bindings) into your current conda prefix **without sudo**:
+
+```bash
+python -m pip install --upgrade cmake
+
+mkdir -p ~/Hopper/_third_party && cd ~/Hopper/_third_party
+rm -rf lcm && git clone --depth 1 https://github.com/lcm-proj/lcm.git
+cd lcm && mkdir -p build && cd build
+cmake .. -DCMAKE_INSTALL_PREFIX="$CONDA_PREFIX" -DLCM_ENABLE_PYTHON=ON -DLCM_ENABLE_JAVA=OFF -DLCM_ENABLE_LUA=OFF
+cmake --build . --parallel 4
+cmake --install .
+```
+
 
