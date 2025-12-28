@@ -75,7 +75,10 @@
                 fullinertia="0.0233667280091328 0.023367930568101 0.0460329566307884 2.39896564964331e-05 2.13732387800745e-06 3.38974687864798e-08"/>
       
       <!-- Base visual (使用原始 STL mesh) -->
-      <geom name="base_visual" type="mesh" mesh="base_link_mesh" 
+      <!-- NOTE: base_link STL is rotated w.r.t. the desired base frame; apply a +30deg yaw correction here. -->
+      <!-- quat is wxyz; yaw(+30deg) => [cos(15deg), 0, 0, +sin(15deg)] -->
+      <geom name="base_visual" type="mesh" mesh="base_link_mesh"
+            quat="0.965926 0 0 0.258819"
             material="body_mat" contype="0" conaffinity="0"/>
       
       <!-- Base collision (简化为圆柱体，提高仿真稳定性) -->
@@ -84,36 +87,38 @@
 
       <!-- ========== Propeller arms (visual only) ========== -->
       <!-- 三个对称布置的扶臂，与 Hopper4 中的三旋翼等效 -->
-      <!-- Prop 0 = RED (y+), Prop 1 = GREEN (x+,y-), Prop 2 = BLUE (x-,y-) -->
-      <geom name="prop_arm_0" type="capsule" fromto="0 0 0 0.000317 0.569451 0"
+      <!-- Propeller positions rotated +30deg to align green prop (Prop1) with +X axis -->
+      <!-- Prop 0 = RED, Prop 1 = GREEN (+X), Prop 2 = BLUE -->
+      <geom name="prop_arm_0" type="capsule" fromto="0 0 0 -0.284451 0.493317 0"
             size="0.012" material="prop_arm_mat" contype="0" conaffinity="0"/>
-      <geom name="prop_arm_1" type="capsule" fromto="0 0 0 0.493317 -0.284451 0"
+      <geom name="prop_arm_1" type="capsule" fromto="0 0 0 0.569451 0.000317 0"
             size="0.012" material="prop_arm_mat" contype="0" conaffinity="0"/>
-      <geom name="prop_arm_2" type="capsule" fromto="0 0 0 -0.493634 -0.285 0"
+      <geom name="prop_arm_2" type="capsule" fromto="0 0 0 -0.285 -0.493634 0"
             size="0.012" material="prop_arm_mat" contype="0" conaffinity="0"/>
 
       <!-- ========== Propeller discs (visual placeholders) ========== -->
       <!-- Coaxial pairs (top/bottom) at each arm tip -->
       <!-- Arm 0 -->
       <geom name="prop_disc_0a" type="cylinder" size="0.08 0.008"
-            pos="0.000317 0.569451 0.030" material="prop_disc_0a_mat" contype="0" conaffinity="0"/>
+            pos="-0.284451 0.493317 0.030" material="prop_disc_0a_mat" contype="0" conaffinity="0"/>
       <geom name="prop_disc_0b" type="cylinder" size="0.08 0.008"
-            pos="0.000317 0.569451 -0.030" material="prop_disc_0b_mat" contype="0" conaffinity="0"/>
+            pos="-0.284451 0.493317 -0.030" material="prop_disc_0b_mat" contype="0" conaffinity="0"/>
       <!-- Arm 1 -->
       <geom name="prop_disc_1a" type="cylinder" size="0.08 0.008"
-            pos="0.493317 -0.284451 0.030" material="prop_disc_1a_mat" contype="0" conaffinity="0"/>
+            pos="0.569451 0.000317 0.030" material="prop_disc_1a_mat" contype="0" conaffinity="0"/>
       <geom name="prop_disc_1b" type="cylinder" size="0.08 0.008"
-            pos="0.493317 -0.284451 -0.030" material="prop_disc_1b_mat" contype="0" conaffinity="0"/>
+            pos="0.569451 0.000317 -0.030" material="prop_disc_1b_mat" contype="0" conaffinity="0"/>
       <!-- Arm 2 -->
       <geom name="prop_disc_2a" type="cylinder" size="0.08 0.008"
-            pos="-0.493634 -0.285 0.030" material="prop_disc_2a_mat" contype="0" conaffinity="0"/>
+            pos="-0.285 -0.493634 0.030" material="prop_disc_2a_mat" contype="0" conaffinity="0"/>
       <geom name="prop_disc_2b" type="cylinder" size="0.08 0.008"
-            pos="-0.493634 -0.285 -0.030" material="prop_disc_2b_mat" contype="0" conaffinity="0"/>
+            pos="-0.285 -0.493634 -0.030" material="prop_disc_2b_mat" contype="0" conaffinity="0"/>
 
       <!-- Propeller thrust reference sites (color-matched) -->
-      <site name="prop_site_0" pos="0.000317 0.569451 0" size="0.02" rgba="1.0 0.2 0.2 0.8"/>
-      <site name="prop_site_1" pos="0.493317 -0.284451 0" size="0.02" rgba="0.2 1.0 0.2 0.8"/>
-      <site name="prop_site_2" pos="-0.493634 -0.285 0" size="0.02" rgba="0.2 0.4 1.0 0.8"/>
+      <!-- Rotated +30deg: green prop (Prop1) now points along +X axis -->
+      <site name="prop_site_0" pos="-0.284451 0.493317 0" size="0.02" rgba="1.0 0.2 0.2 0.8"/>
+      <site name="prop_site_1" pos="0.569451 0.000317 0" size="0.02" rgba="0.2 1.0 0.2 0.8"/>
+      <site name="prop_site_2" pos="-0.285 -0.493634 0" size="0.02" rgba="0.2 0.4 1.0 0.8"/>
       
       <!-- Hip joint: Roll (around X axis) -->
       <!-- 从 URDF: origin xyz="0 0 -0.0416" -->

@@ -160,6 +160,56 @@ def _quat_mul(q1_wxyz: np.ndarray, q2_wxyz: np.ndarray) -> np.ndarray:
     )
 
 
+def _add_frame_axes_to_scene(
+    scene: mujoco.MjvScene,
+    origin_w: np.ndarray,
+    R_wb: np.ndarray,
+    axis_len_m: float = 0.12,
+    width_px: float = 3.0,
+    rgba_x: np.ndarray | None = None,
+    rgba_y: np.ndarray | None = None,
+    rgba_z: np.ndarray | None = None,
+) -> None:
+    """Add a 3-axis coordinate frame (x,y,z) to the current MuJoCo scene as colored line geoms.
+
+    This is *visualization only* (no effect on physics/control). Coordinates are in WORLD.
+    """
+    try:
+        origin = np.asarray(origin_w, dtype=float).reshape(3)
+        R = np.asarray(R_wb, dtype=float).reshape(3, 3)
+        L = float(max(0.0, float(axis_len_m)))
+        if L <= 1e-9:
+            return
+        # Default colors: RGB for xyz
+        if rgba_x is None:
+            rgba_x = np.array([1.0, 0.0, 0.0, 0.90], dtype=np.float32)
+        if rgba_y is None:
+            rgba_y = np.array([0.0, 1.0, 0.0, 0.90], dtype=np.float32)
+        if rgba_z is None:
+            rgba_z = np.array([0.0, 0.3, 1.0, 0.90], dtype=np.float32)
+
+        def _add_line(p0: np.ndarray, p1: np.ndarray, rgba: np.ndarray) -> None:
+            if int(scene.ngeom) >= int(scene.maxgeom):
+                return
+            geom = scene.geoms[int(scene.ngeom)]
+            size = np.zeros(3, dtype=np.float64)
+            pos = np.zeros(3, dtype=np.float64)
+            mat = np.zeros(9, dtype=np.float64)
+            mujoco.mjv_initGeom(geom, mujoco.mjtGeom.mjGEOM_LINE, size, pos, mat, np.asarray(rgba, dtype=np.float32).reshape(4))
+            mujoco.mjv_connector(geom, mujoco.mjtGeom.mjGEOM_LINE, float(width_px), np.asarray(p0, dtype=np.float64).reshape(3), np.asarray(p1, dtype=np.float64).reshape(3))
+            scene.ngeom = int(scene.ngeom) + 1
+
+        ex = origin + L * R[:, 0]
+        ey = origin + L * R[:, 1]
+        ez = origin + L * R[:, 2]
+        _add_line(origin, ex, rgba_x)
+        _add_line(origin, ey, rgba_y)
+        _add_line(origin, ez, rgba_z)
+    except Exception:
+        # Never break rendering due to debug visualization.
+        return
+
+
 def _quat_from_omega_dt(omega_b: np.ndarray, dt: float) -> np.ndarray:
     w = np.asarray(omega_b, dtype=float).reshape(3)
     th = float(np.linalg.norm(w) * float(dt))
@@ -522,6 +572,8 @@ class ModeESim:
         # against the *commanded* landing point from the preceding flight.
         self._foot_b_des_last = np.asarray(self._foot_b_nom, dtype=float).copy()
         self._s2s_active_last = False
+        # Apex reached flag: only start swing leg (S2S) after apex is detected
+        self._apex_reached = False
 
         self.dt = float(self.model.opt.timestep)
         self.sim_time = 0.0
@@ -722,6 +774,8 @@ class ModeESim:
                     touchdown_evt = True
                     self._stance = True
                     self._td_t = float(self.sim_time)
+                    # Reset apex flag on touchdown (new hop cycle)
+                    self._apex_reached = False
                     # Touchdown height estimate from leg kinematics (assume foot is on the ground plane).
                     z_td_est = -float((R_wb_hat @ foot_b.reshape(3))[2])
                     self._td_z_est = float(z_td_est)
@@ -757,10 +811,11 @@ class ModeESim:
         if np.isfinite(qd_shift):
             self._qd_shift_prev = float(qd_shift)
 
-        # ===== liftoff detection (NO foot sensor): leg length + leg speed only =====
-        # Liftoff signature: leg is extending fast and is near max extension.
-        if bool(self._stance) and self._liftoff_ok() and np.isfinite(q_shift) and np.isfinite(qd_shift):
-            if (float(q_shift) <= float(self.cfg.lo_q_shift_gate)) and (float(qd_shift) <= float(self.cfg.lo_qd_shift_gate)):
+        # ===== liftoff detection (NO foot sensor): leg length only (STRICT l0) =====
+        # User-defined: l0 ≡ maximum leg length in this model, which corresponds to q_shift == 0 (joint lower limit).
+        # We switch to FLIGHT ONLY when the leg has re-extended back to l0 (no epsilon margin).
+        if bool(self._stance) and self._liftoff_ok() and np.isfinite(q_shift):
+            if float(q_shift) <= 0.0:
                 liftoff_evt = True
                 self._stance = False
                 self._lo_t = float(self.sim_time)
@@ -837,6 +892,8 @@ class ModeESim:
             self._prev_vz = float(vz_hat)
         if (not bool(self._stance)) and (float(self._prev_vz) > 0.0) and (float(vz_hat) <= 0.0):
             apex_evt = True
+            # Mark apex as reached: now allow swing leg (S2S) to start
+            self._apex_reached = True
         self._prev_vz = float(vz_hat)
 
         # ===== stance: compression -> push =====
@@ -991,7 +1048,8 @@ class ModeESim:
             q_shift_des = 0.0
             q_roll_des = 0.0
             q_pitch_des = 0.0
-            if bool(self.cfg.use_s2s):
+            # Only start swing leg (S2S) after apex is reached
+            if bool(self.cfg.use_s2s) and bool(self._apex_reached):
                 v_b = (R_wb_hat.T @ np.asarray(self._v_hat_w, dtype=float).reshape(3)).reshape(3)
                 v_xy_b = np.asarray(v_b[0:2], dtype=float).reshape(2)
                 v_des_w = np.asarray(desired_v, dtype=float).reshape(2)
@@ -1804,6 +1862,30 @@ def main() -> None:
                 pass
 
             renderer.update_scene(sim.data, camera=cam)
+            # --- 3D coordinate frames (debug visualization) ---
+            # Robot/base frame: true base_link axes (RGB).
+            # IMU frame: attitude estimate axes (CMY), slightly offset upward for visibility.
+            try:
+                scene = renderer.scene
+                base_pos = np.asarray(sim.data.xpos[base_bid], dtype=float).reshape(3)
+                R_wb_true = np.asarray(sim.data.xmat[base_bid], dtype=float).reshape(3, 3)
+                _add_frame_axes_to_scene(scene, base_pos, R_wb_true, axis_len_m=0.14, width_px=3.0)
+
+                q_hat = np.asarray(info.get("q_hat_wxyz", np.array([1.0, 0.0, 0.0, 0.0], dtype=float)), dtype=float).reshape(4)
+                R_wb_hat = _quat_to_R_wb(q_hat)
+                imu_origin = (base_pos + np.array([0.0, 0.0, 0.18], dtype=float)).reshape(3)
+                _add_frame_axes_to_scene(
+                    scene,
+                    imu_origin,
+                    R_wb_hat,
+                    axis_len_m=0.12,
+                    width_px=3.0,
+                    rgba_x=np.array([0.0, 1.0, 1.0, 0.85], dtype=np.float32),
+                    rgba_y=np.array([1.0, 0.0, 1.0, 0.85], dtype=np.float32),
+                    rgba_z=np.array([1.0, 1.0, 0.0, 0.85], dtype=np.float32),
+                )
+            except Exception:
+                pass
             frame = renderer.render()
             frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
 
@@ -1811,6 +1893,20 @@ def main() -> None:
             v_hat = np.asarray(info.get("v_hat_w", np.zeros(3)), dtype=float).reshape(3)
             p_hat = np.asarray(info.get("p_hat_w", np.zeros(3)), dtype=float).reshape(3)
             rpy_hat = np.asarray(info.get("rpy_hat", np.zeros(3)), dtype=float).reshape(3)
+            # Phase display (COMP/PUSH/FLIGHT + TD/LO/APEX)
+            stance_int = int(info.get("stance_int", 0))
+            comp_int = int(info.get("compress_int", 0))
+            push_int = int(info.get("push_int", 0))
+            td = int(info.get("touchdown", 0))
+            lo = int(info.get("liftoff", 0))
+            apx = int(info.get("apex", 0))
+            if stance_int:
+                phase_txt = "STANCE:PUSH" if push_int else "STANCE:COMP"
+                if comp_int and (not push_int):
+                    phase_txt = "STANCE:COMP"
+            else:
+                phase_txt = "FLIGHT"
+            cv2.putText(frame_bgr, f"phase={phase_txt}  TD={td} LO={lo} AP={apx}", (20, 55), cv2.FONT_HERSHEY_SIMPLEX, 0.68, (255, 255, 255), 2)
             cv2.putText(
                 frame_bgr,
                 f"{seg_name}  vx_cmd={vx_cmd_now:.2f}  vx={vel[0]:+.2f}  vx_hat={float(v_hat[0]):+.2f}  vz_hat={float(v_hat[2]):+.2f}  z_hat={float(p_hat[2]):.2f}  z={pos[2]:.2f}  contact={int(contact_obs)}",
@@ -1830,13 +1926,14 @@ def main() -> None:
                 2,
             )
             cv2.putText(frame_bgr, f"shift={q_shift:+.3f}m  qd_shift={float(info.get('qd_shift',0.0)):+.2f}  comp={comp_now*100.0:.1f}cm / {comp_tgt*100.0:.0f}cm  slackN={float(info.get('slackN',0.0)):.2e}", (20, 132), cv2.FONT_HERSHEY_SIMPLEX, 0.62, (255, 255, 255), 2)
+            cv2.putText(frame_bgr, "frames: ROBOT xyz=RGB (base), IMU xyz=CMY (est, offset up)", (20, 156), cv2.FONT_HERSHEY_SIMPLEX, 0.55, (255, 255, 255), 2)
             # Display prop PWM (like the older modex recordings)
             pwm_us = np.asarray(info.get("pwm_us", np.zeros(3)), dtype=float).reshape(-1)
             if pwm_us.size >= 3 and np.all(np.isfinite(pwm_us[:3])):
                 cv2.putText(
                     frame_bgr,
                     f"PWM(us): [{pwm_us[0]:.0f}, {pwm_us[1]:.0f}, {pwm_us[2]:.0f}]",
-                    (20, 164),
+                    (20, 184),
                     cv2.FONT_HERSHEY_SIMPLEX,
                     0.62,
                     (255, 255, 255),

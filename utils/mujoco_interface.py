@@ -74,12 +74,13 @@ class MuJoCoInterface:
             self.foot_touch_adr = None
             self.foot_touch_dim = None
 
-        # Propeller 位置信息（机体坐标系），十字布局
+        # Propeller 位置信息（机体坐标系），三臂布局（与 MJCF 里的 prop_site_* 一致）
+        # Rotated +30deg to align green prop (Prop1) with +X axis (robot/IMU coordinate alignment)
         # 3 rotor centers (same as the visual arm tips)
         self.prop_positions_body = np.array([
-            [0.000317, 0.569451, 0.0],
-            [0.493317, -0.284451, 0.0],
-            [-0.493634, -0.285000, 0.0]
+            [-0.284451, 0.493317, 0.0],
+            [0.569451, 0.000317, 0.0],
+            [-0.285000, -0.493634, 0.0]
         ])
         # Legacy 3-rotor spin dirs (unused in the 6-motor coaxial setup below)
         self.prop_spin_dirs = np.array([1.0, -1.0, 1.0])
