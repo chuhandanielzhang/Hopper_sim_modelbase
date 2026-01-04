@@ -111,6 +111,7 @@ class RaibertController:
         self.springForce_vec = np.zeros(3)
         self.hip_torque = np.zeros(3)
         self.flight_target_pos = np.zeros(3)  # 初始化目标落点
+        self.flight_target_pos_raw = np.zeros(3)  # 未旋转的目标落点（world）
         
     def update(self, state, desired_vel, dt=0.002):
         """
@@ -284,83 +285,44 @@ class RaibertController:
         spring_force_along = 0.0
         
         if self.state == 1:
-            # ========== Raibert 足端放置（与 Hopper4.py 第 292-308 行完全一致）==========
-            # 
-            # 关键点：targetFootPos 首先在【世界坐标系】中计算，然后通过四元数转换到【机体坐标系】
-            # 这样足端目标位置是"垂直于地面"的，而不是"垂直于 base"！
-            # 当机器人倾斜时，这个转换确保腿仍然指向地面。
-            #
-            # MuJoCo 速度符号修正：
-            # - MuJoCo 的 vel 是直接从 qvel 读取的（世界坐标系，向前为正）
-            # - Hopper4.py 的 vel 来自 com_filter，经过了 -foot_vel 的转换（符号相反）
-            # Raibert 足端放置控制（v1.2 稳定版）
-            # targetFootPos = Kv * v_current - Kr * v_desired
-            # desiredVel > 0(想向前) -> targetFootPos_x < 0(脚放后方) -> stance 推进向前
-            targetFootPos = self.Kv * np.array([vel[0], vel[1], 0]) - self.Kr * np.array([desiredVel[0], desiredVel[1], 0])
-            
-            # 限制目标位置
+            # ========== Flight Phase (match Hopper4.py) ==========
+            # Raibert foot placement (Hopper4.py):
+            #   targetFootPos_xy = Kv * v_xy + Kr * v_des_xy
+            targetFootPos = self.Kv * np.array([vel[0], vel[1], 0.0]) + self.Kr * np.array([desiredVel[0], desiredVel[1], 0.0])
+
+            # Limit XY magnitude
             normTarget = np.linalg.norm(targetFootPos)
             if normTarget > self.stepperLim:
                 targetFootPos = targetFootPos / normTarget * self.stepperLim
                 normTarget = np.linalg.norm(targetFootPos)
-            
-            # Z 坐标：在 Hopper4.py 坐标系中，足端在下方时 Z 为负
-            targetFootPos[2] = -np.sqrt(max(0, self.l0**2 - normTarget**2))
-            
-            # 🔧 关键：通过四元数转换到机体坐标系（与 Hopper4.py 第 308 行一致）
-            # 这确保腿的目标位置是相对于【世界】的（垂直于地面），而不是相对于【base】
+
+            # Enforce ||targetFootPos|| == l0 by setting Z (Hopper4 convention: foot below => Z negative)
+            targetFootPos[2] = -np.sqrt(max(0.0, self.l0**2 - normTarget**2))
+
+            # Save raw (world) target before rotation, then rotate to BODY like Hopper4.py
+            targetFootPos_raw = targetFootPos.copy()
             targetFootPos = self.robot2vicon.T @ vicon2world.T @ targetFootPos
-            
-            # 记录目标落点（用于日志/调试）
-            self.flight_target_pos = targetFootPos.copy()
-            
-            # Flight phase 力矩计算：
-            # 1. Roll/Pitch 力矩来自足端位置误差（直接 PD 控制）
-            # 2. Shift 力矩来自腿长控制（保持 l0）
-            
-            # 足端位置误差（在 XY 平面）
-            foot_error = targetFootPos - x
-            foot_vel_error = xdot - np.cross(rAngVel, x)
-            
-            # 直接计算 Roll/Pitch 力矩
-            # 在 MuJoCo 中：
-            # - 正 Pitch 力矩 → 机体后仰 → 足端相对于机体向前移动
-            # - 负 Pitch 力矩 → 机体前倾 → 足端相对于机体向后移动
-            # 
-            # 当足端在机体后方 (foot_error[0] > 0) 时，需要让足端向前
-            # 这需要机体后仰，即正 Pitch 力矩
-            # 但是！机体后仰会让机器人摔倒！
-            # 
-            # 正确的理解：我们控制的是腿相对于机体的摆动
-            # 当足端在后方时，需要让腿向前摆，这需要负 Pitch 力矩（让腿向前）
-            hipTorque = np.zeros(3)
-            hipTorque[0] = self.Khp * foot_error[1] - self.Khd * foot_vel_error[1]  # Roll
-            hipTorque[1] = -self.Khp * foot_error[0] + self.Khd * foot_vel_error[0]   # Pitch (取负号)
-            
-            # 限制 hipTorque
-            if np.linalg.norm(hipTorque[:2]) > self.hipTorqueLim:
-                hipTorque[:2] = hipTorque[:2] / np.linalg.norm(hipTorque[:2]) * self.hipTorqueLim
-            
-            # Flight phase：让腿保持伸展状态（接近 l0）
-            # 与 Hopper4.py 一致，使用相同的 k 和 b
-            springForce_scalar = -self.k * (l - self.l0) - self.b * np.dot(xdot, unitSpring)
-            springForce = springForce_scalar * unitSpring
-            spring_force_along = springForce_scalar
-            
-            # 计算 Shift 力矩
-            J = self._serial_jacobian(joint[0], joint[1], joint[2])
-            shift_torque_from_spring = J.T @ springForce
-            
-            # 组合力矩
-            torque = np.zeros(3)
-            torque[0] = hipTorque[0]  # Roll 力矩
-            torque[1] = hipTorque[1]  # Pitch 力矩
-            torque[2] = shift_torque_from_spring[2]  # Shift 力矩
-            
-            # 保存调试信息（保持兼容性）
-            sideForce = self.Khp * (targetFootPos - x) - self.Khd * foot_vel_error
+
+            # Side force PD (remove component along leg axis)
+            sideForce = self.Khp * (targetFootPos - x) - self.Khd * (xdot - np.cross(rAngVel, x))
             sideForce = sideForce - np.dot(sideForce, unitSpring) * unitSpring
+
+            # Spring force along leg (same k/b structure as Hopper4.py)
+            springForce = force * unitSpring - self.b * springVel
+            spring_force_along = float(np.dot(springForce, unitSpring))
+
             footForce = sideForce + springForce
+
+            # Map foot force -> joint torque (serial Jacobian)
+            J = self._serial_jacobian(joint[0], joint[1], joint[2])
+            try:
+                torque = (np.linalg.inv(J.T) @ footForce).reshape(3)
+            except Exception:
+                torque = (np.linalg.pinv(J.T) @ footForce).reshape(3)
+
+            # Debug/compat
+            self.flight_target_pos = targetFootPos.copy()
+            self.flight_target_pos_raw = targetFootPos_raw.copy()
             
             self.state_safety += 1
             

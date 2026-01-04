@@ -368,6 +368,12 @@ def main() -> None:
     )
     ap.add_argument("--gamepad-hz", type=float, default=50.0, help="Synthetic gamepad publish rate (Hz).")
     ap.add_argument("--gamepad-max-cmd-vel", type=float, default=0.8, help="Must match run_modee.py --max-cmd-vel.")
+    ap.add_argument(
+        "--gamepad-vx-sign",
+        type=float,
+        default=-1.0,
+        help="Sign applied to commanded vx when mapping to gamepad stick. Default -1 matches ModeE WORLD(+x) convention to MuJoCo forward in this sim.",
+    )
     ap.add_argument("--cmd-vx0", type=float, default=0.0, help="Desired vx (m/s) after release, before switch.")
     ap.add_argument("--cmd-vy0", type=float, default=0.0, help="Desired vy (m/s) after release, before switch.")
     ap.add_argument("--cmd-vx1", type=float, default=0.30, help="Desired vx (m/s) after switch.")
@@ -737,6 +743,7 @@ def main() -> None:
     gp_period = 1.0 / gp_hz
     next_gp_sim_t = 0.0
     gp_max_v = float(max(1e-6, float(getattr(args, "gamepad_max_cmd_vel", 0.8))))
+    gp_vx_sign = float(getattr(args, "gamepad_vx_sign", -1.0))
     cmd_vx0 = float(getattr(args, "cmd_vx0", 0.0))
     cmd_vy0 = float(getattr(args, "cmd_vy0", 0.0))
     cmd_vx1 = float(getattr(args, "cmd_vx1", 0.30))
@@ -864,7 +871,7 @@ def main() -> None:
             vx_cmd = float((1.0 - u) * float(cmd_vx1) + u * float(cmd_vx2))
             vy_cmd = float((1.0 - u) * float(cmd_vy1) + u * float(cmd_vy2))
 
-        stick_x = float(np.clip(vx_cmd / gp_max_v, -1.0, 1.0))
+        stick_x = float(np.clip((vx_cmd * gp_vx_sign) / gp_max_v, -1.0, 1.0))
         stick_y = float(np.clip(vy_cmd / gp_max_v, -1.0, 1.0))
         if bool(fake_gamepad) and (float(sim_t) >= float(next_gp_sim_t) - 1e-12):
             try:
@@ -1167,6 +1174,7 @@ def main() -> None:
                         hud_lines = [
                             f"t={sim_t:6.3f}s  {phase}  armed={int(armed)}  rel={t_after_release:4.1f}s",
                             f"v_cmd=[{vx_cmd:+.2f},{vy_cmd:+.2f}]m/s stick=[{stick_x:+.2f},{stick_y:+.2f}]",
+                            f"base_p_w={_fmt_vec(np.asarray(data.qpos[0:3], dtype=float).reshape(3), fmt='{:+.3f}')}  base_v_w={_fmt_vec(np.asarray(data.qvel[0:3], dtype=float).reshape(3), fmt='{:+.3f}')}",
                             f"rpy_deg=[{np.rad2deg(rpy[0]):+.1f},{np.rad2deg(rpy[1]):+.1f},{np.rad2deg(rpy[2]):+.1f}]  q=[{q_lcm_now[0]:+.3f},{q_lcm_now[1]:+.3f},{q_lcm_now[2]:+.3f}]",
                             f"foot_b_gt={_fmt_vec(foot_b_gt, fmt='{:+.3f}')}  foot_des_b_vert={_fmt_vec(foot_des_b_vert, fmt='{:+.3f}')}",
                             f"tau_ff_lcm={_fmt_vec(tau_ff_lcm, fmt='{:+.1f}')}",
