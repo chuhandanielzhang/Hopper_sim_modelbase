@@ -208,14 +208,22 @@ def main() -> None:
         vx_des = _desired_vx(t_rel)
         desired_vel = np.array([vx_des, 0.0, 0.0], dtype=float)
 
-        # Note: body_vel estimation from foot_vel is complex. Use zero for now.
+        # Estimate body velocity from foot velocity (works in stance when foot is on ground)
+        from scipy.spatial.transform import Rotation
+        quat_scipy = [quat[1], quat[2], quat[3], quat[0]]  # wxyz -> xyzw
+        R_wb = Rotation.from_quat(quat_scipy).as_matrix()
+        foot_vel_world = (R_wb @ foot_vel_b.reshape(3)).reshape(3)
+        body_vel_raw = -foot_vel_world
+        alpha = float(dt / (body_vel_lpf_tau + dt))
+        body_vel_est[0] = float(body_vel_est[0] + alpha * (body_vel_raw[0] - body_vel_est[0]))
+        body_vel_est[1] = float(body_vel_est[1] + alpha * (body_vel_raw[1] - body_vel_est[1]))
 
         state = {
             "foot_pos": foot_pos_h4.reshape(3),
             "foot_vel": foot_vel_h4.reshape(3),
             "joint_pos": q.reshape(3),
             "joint_vel": qd.reshape(3),
-            "body_vel": np.zeros(3, dtype=float),
+            "body_vel": body_vel_est.copy(),
             "body_quat": quat.reshape(4),
             "body_ang_vel": gyro_h4.reshape(3),
             "body_pos": np.zeros(3, dtype=float),

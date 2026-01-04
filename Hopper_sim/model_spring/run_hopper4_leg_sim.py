@@ -190,16 +190,27 @@ def main() -> None:
         vx_des = _desired_vx(t_rel)
         desired_vel = np.array([vx_des, 0.0, 0.0], dtype=float)
 
-        # Note: body_vel estimation from foot_vel is complex due to angular velocity terms.
-        # For now, use zero velocity and rely only on desiredVel for Raibert placement.
-        # This makes targetFootPos = -Kr * desiredVel (pure feedforward).
+        # Estimate body velocity from foot velocity (works in stance when foot is on ground)
+        # body_vel_world ≈ -R_wb @ foot_vel_body (foot fixed -> body moves opposite)
+        quat_scipy = [quat[1], quat[2], quat[3], quat[0]]  # wxyz -> xyzw
+        R_wb = Rotation.from_quat(quat_scipy).as_matrix()
+        # foot_vel_b is in MuJoCo body frame (+Z up), convert to world
+        foot_vel_world = (R_wb @ foot_vel_b.reshape(3)).reshape(3)
+        # In stance, body velocity = -foot_vel_world (foot stationary on ground)
+        body_vel_raw = -foot_vel_world
+        # Low-pass filter to smooth the estimate
+        alpha = float(dt / (body_vel_lpf_tau + dt))
+        body_vel_est[0] = float(body_vel_est[0] + alpha * (body_vel_raw[0] - body_vel_est[0]))
+        body_vel_est[1] = float(body_vel_est[1] + alpha * (body_vel_raw[1] - body_vel_est[1]))
+        # Don't estimate Z velocity (keep 0)
 
         state = {
             "foot_pos": foot_pos_h4.reshape(3),
             "foot_vel": foot_vel_h4.reshape(3),
             "joint_pos": q.reshape(3),
             "joint_vel": qd.reshape(3),
-            "body_vel": np.zeros(3, dtype=float),  # Simplified: no velocity feedback
+            # Body velocity estimated from foot velocity
+            "body_vel": body_vel_est.copy(),
             "body_quat": quat.reshape(4),
             "body_ang_vel": gyro_h4.reshape(3),
             "body_pos": np.zeros(3, dtype=float),

@@ -40,10 +40,9 @@ class RaibertController:
         # 为了让串联腿等效到真实腿 l0=0.464，需要减去固定偏移（0.6253 - 0.464 ≈ 0.1613）
         self.leg_offset = 0.1613  # serial → physical 长度偏移（包含 3cm 偏移）
         
-        # ========== Raibert 足端放置增益 ==========
-        # Increased for visible leg swing when tracking velocity
-        self.Kv = 0.15     # 速度前馈 (increased from 0.10)
-        self.Kr = 0.20     # 速度校正 (increased from 0.09)
+        # ========== Raibert 足端放置增益（原始 Hopper4 值）==========
+        self.Kv = 0.10     # 速度前馈
+        self.Kr = 0.09     # 速度校正
         self.Khp = 50        # 飞行阶段足端位置增益
         self.Khd = 1.0       # flight foot velocity gain (damping)
         
@@ -237,10 +236,9 @@ class RaibertController:
         if np.linalg.norm(desiredVel) > self.posVelLim:
             desiredVel = desiredVel / np.linalg.norm(desiredVel) * self.posVelLim
             
-        # Debug: Check Raibert foot placement (disabled)
-        # if self.state == 1 and abs(desiredVel[0]) > 0.01:
-        #     targetFootPos_dbg = self.Kv * np.array([vel[0], vel[1], 0]) - self.Kr * np.array([desiredVel[0], desiredVel[1], 0])
-        #     print(f"DEBUG Raibert: vel={vel[:2]}, dVel={desiredVel[:2]}, tgtFoot={targetFootPos_dbg[:2]}")
+        # Debug: Check why TgtX is 0
+        # if abs(desiredVel[0]) > 0.01 and self.state == 1:
+        #     print(f"DEBUG: vel={vel[:2]}, dVel={desiredVel[:2]}, Kv={self.Kv}, Kr={self.Kr}")
         
         # ========== 弹簧相关计算 ==========
         unitSpring = x / l_serial
