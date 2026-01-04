@@ -148,20 +148,16 @@ pip install mujoco
 
 ## 🎬 Demo Videos
 
-### Model 1 — ModeE (Serial) Demo (3s in-place → 5s forward → 3s in-place)
+All demos follow the same task: **3s in-place hopping → 5s forward → 3s in-place hopping**.
 
-[![ModeE serial](videos/modee_task_3s0_5s_fwd_3s0_thumb.png)](videos/modee_task_3s0_5s_fwd_3s0.mp4)
+### Model 1 — ModeE (Serial) Demo
 
-**Click the thumbnail to play the video.**
+![ModeE serial](videos/modee_task_3s0_5s_fwd_3s0.gif)
 
-### Model 2 — Hopper4 LEG-only Demo (3s in-place → 5s forward → 3s in-place)
+### Model 2 — Hopper4 LEG-only Demo
 
-[![Hopper4 leg-only](videos/hopper4_leg_task_3s0_5s_fwd_3s0_thumb.png)](videos/hopper4_leg_task_3s0_5s_fwd_3s0.mp4)
+![Hopper4 leg-only](videos/hopper4_leg_task_3s0_5s_fwd_3s0.gif)
 
-**Click the thumbnail to play the video.**
+### Model 3 — Hopper4 PROP Demo
 
-### Model 3 — Hopper4 PROP Demo (3s in-place → 5s forward → 3s in-place)
-
-[![Hopper4 prop](videos/hopper4_prop_task_3s0_5s_fwd_3s0_thumb.png)](videos/hopper4_prop_task_3s0_5s_fwd_3s0.mp4)
-
-**Click the thumbnail to play the video.**
+![Hopper4 prop](videos/hopper4_prop_task_3s0_5s_fwd_3s0.gif)
