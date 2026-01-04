@@ -13,3 +13,10 @@ build/
 *.gif
 *.png
 *.jpg
+
+# Keep curated demo media tracked in Hopper_sim/videos/
+!videos/
+!videos/*.mp4
+!videos/*.gif
+!videos/*.png
+!videos/*.jpg

@@ -1,0 +1,223 @@
+<!-- 
+Hopper 3RSR Parallel Mechanism - Visualization Model
+======================================================
+
+This model shows the TRUE 3RSR parallel structure with:
+- 3 motor joints at 120° intervals
+- 3 upper links (D = 0.188m)
+- 3 spherical knee joints
+- 3 lower links (d = 0.398m)
+- Closed-loop constraints connecting to single foot
+
+Initial configuration: all motors at -12.68° for leg length ≈ 0.464m
+
+Author: Mode4 3RSR Parallel Visualization
+-->
+<mujoco model="hopper_3rsr_visual">
+  <compiler angle="degree" meshdir="meshes" eulerseq="xyz"/>
+  
+  <option timestep="0.001" gravity="0 0 -9.81" integrator="RK4">
+    <flag warmstart="enable"/>
+  </option>
+  
+  <visual>
+    <global offwidth="1920" offheight="1080"/>
+    <quality shadowsize="4096"/>
+  </visual>
+  
+  <default>
+    <joint armature="0.005" damping="0.5" limited="true"/>
+    <geom contype="1" conaffinity="1" friction="0.8 0.005 0.0001"/>
+    <motor ctrllimited="true"/>
+  </default>
+  
+  <asset>
+    <texture type="skybox" builtin="gradient" rgb1="0.4 0.6 0.8" rgb2="0 0 0" width="512" height="512"/>
+    <texture name="plane_tex" type="2d" builtin="checker" rgb1="0.2 0.2 0.2" rgb2="0.3 0.3 0.3" width="512" height="512"/>
+    <material name="plane_mat" texture="plane_tex" texrepeat="5 5" reflectance="0.1"/>
+    
+    <!-- Materials for 3RSR visualization -->
+    <material name="base_mat" rgba="0.2 0.4 0.8 1"/>
+    <material name="motor_mat" rgba="0.9 0.7 0.1 1"/>
+    <material name="upper_mat" rgba="0.7 0.7 0.7 1"/>
+    <material name="knee_mat" rgba="0.9 0.5 0.1 1"/>
+    <material name="lower_mat" rgba="0.5 0.5 0.5 1"/>
+    <material name="foot_mat" rgba="0.9 0.2 0.2 1"/>
+    <material name="prop_mat" rgba="0.2 0.8 0.2 0.5"/>
+    
+    <mesh name="base_link_mesh" file="base_link.STL"/>
+  </asset>
+  
+  <worldbody>
+    <!-- Ground -->
+    <geom name="ground" type="plane" size="10 10 0.1" material="plane_mat"/>
+    
+    <!-- ========== BASE (Floating) ========== -->
+    <body name="base_link" pos="0 0 0.6">
+      <freejoint name="root"/>
+      
+      <site name="imu_site" pos="0 0 0" size="0.01"/>
+      
+      <inertial pos="0 0 -0.02" mass="2.507"
+                diaginertia="0.0234 0.0234 0.046"/>
+      
+      <!-- Base visual -->
+      <geom name="base_visual" type="mesh" mesh="base_link_mesh" 
+            material="base_mat" contype="0" conaffinity="0"/>
+      <geom name="base_collision" type="cylinder" size="0.12 0.04" 
+            pos="0 0 0" rgba="0 0 0 0"/>
+      
+      <!-- Propeller arms -->
+      <geom name="prop_arm_1" type="capsule" fromto="0 0 0 0 0.57 0"
+            size="0.008" material="base_mat" contype="0" conaffinity="0"/>
+      <geom name="prop_arm_2" type="capsule" fromto="0 0 0 0.493 -0.285 0"
+            size="0.008" material="base_mat" contype="0" conaffinity="0"/>
+      <geom name="prop_arm_3" type="capsule" fromto="0 0 0 -0.493 -0.285 0"
+            size="0.008" material="base_mat" contype="0" conaffinity="0"/>
+      
+      <!-- Propeller discs -->
+      <geom name="prop_1" type="cylinder" size="0.12 0.005" pos="0 0.57 0" 
+            material="prop_mat" contype="0" conaffinity="0"/>
+      <geom name="prop_2" type="cylinder" size="0.12 0.005" pos="0.493 -0.285 0" 
+            material="prop_mat" contype="0" conaffinity="0"/>
+      <geom name="prop_3" type="cylinder" size="0.12 0.005" pos="-0.493 -0.285 0" 
+            material="prop_mat" contype="0" conaffinity="0"/>
+      
+      <site name="prop_site_1" pos="0 0.57 0" size="0.01"/>
+      <site name="prop_site_2" pos="0.493 -0.285 0" size="0.01"/>
+      <site name="prop_site_3" pos="-0.493 -0.285 0" size="0.01"/>
+      
+      <!-- ========== LIMB 1 (φ = 0°, Y+ direction) ========== -->
+      <!-- Motor at (0, r, -offset) -->
+      <body name="motor1_body" pos="0 0.02424 -0.0416">
+        <joint name="motor1" type="hinge" axis="1 0 0" 
+               range="-60 60" ref="-12.68" damping="0.5"/>
+        <inertial pos="0 0 0" mass="0.03" diaginertia="1e-5 1e-5 1e-5"/>
+        <geom name="motor1_geom" type="sphere" size="0.018" material="motor_mat"/>
+        
+        <!-- Upper link 1: extends along local Y then bends -->
+        <body name="upper1_body" pos="0 0.094 0">
+          <inertial pos="0 0.047 0" mass="0.06" diaginertia="3e-4 1e-5 3e-4"/>
+          <geom name="upper1_geom" type="capsule" fromto="0 -0.094 0 0 0.094 0" 
+                size="0.012" material="upper_mat"/>
+          
+          <!-- Knee 1 (spherical: 3 hinges) -->
+          <body name="knee1_body" pos="0 0.094 0">
+            <joint name="knee1_x" type="hinge" axis="1 0 0" range="-80 80" damping="0.1"/>
+            <joint name="knee1_y" type="hinge" axis="0 1 0" range="-80 80" damping="0.1"/>
+            <joint name="knee1_z" type="hinge" axis="0 0 1" range="-80 80" damping="0.1"/>
+            <inertial pos="0 0 0" mass="0.02" diaginertia="1e-5 1e-5 1e-5"/>
+            <geom name="knee1_geom" type="sphere" size="0.015" material="knee_mat"/>
+            
+            <!-- Lower link 1 + Foot (primary chain) -->
+            <body name="lower1_body" pos="0 0 0">
+              <inertial pos="0 0 -0.199" mass="0.12" diaginertia="6e-4 6e-4 1e-5"/>
+              <geom name="lower1_geom" type="capsule" fromto="0 0 0 0 0 -0.398" 
+                    size="0.010" material="lower_mat"/>
+              
+              <!-- FOOT attached to limb 1 -->
+              <body name="foot_link" pos="0 0 -0.398">
+                <inertial pos="0 0 0" mass="0.01" diaginertia="1e-6 1e-6 1e-6"/>
+                <geom name="foot_geom" type="sphere" size="0.035" material="foot_mat"/>
+                <site name="foot_site" pos="0 0 -0.035" size="0.01"/>
+                <site name="foot_center" pos="0 0 0" size="0.005"/>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+      
+      <!-- ========== LIMB 2 (φ = 120°) ========== -->
+      <body name="motor2_body" pos="0.02099 -0.01212 -0.0416" euler="0 0 120">
+        <joint name="motor2" type="hinge" axis="1 0 0" 
+               range="-60 60" ref="-12.68" damping="0.5"/>
+        <inertial pos="0 0 0" mass="0.03" diaginertia="1e-5 1e-5 1e-5"/>
+        <geom name="motor2_geom" type="sphere" size="0.018" material="motor_mat"/>
+        
+        <body name="upper2_body" pos="0 0.094 0">
+          <inertial pos="0 0.047 0" mass="0.06" diaginertia="3e-4 1e-5 3e-4"/>
+          <geom name="upper2_geom" type="capsule" fromto="0 -0.094 0 0 0.094 0" 
+                size="0.012" material="upper_mat"/>
+          
+          <body name="knee2_body" pos="0 0.094 0">
+            <joint name="knee2_x" type="hinge" axis="1 0 0" range="-80 80" damping="0.1"/>
+            <joint name="knee2_y" type="hinge" axis="0 1 0" range="-80 80" damping="0.1"/>
+            <joint name="knee2_z" type="hinge" axis="0 0 1" range="-80 80" damping="0.1"/>
+            <inertial pos="0 0 0" mass="0.02" diaginertia="1e-5 1e-5 1e-5"/>
+            <geom name="knee2_geom" type="sphere" size="0.015" material="knee_mat"/>
+            
+            <body name="lower2_body" pos="0 0 0">
+              <inertial pos="0 0 -0.199" mass="0.12" diaginertia="6e-4 6e-4 1e-5"/>
+              <geom name="lower2_geom" type="capsule" fromto="0 0 0 0 0 -0.398" 
+                    size="0.010" material="lower_mat"/>
+              <site name="lower2_tip" pos="0 0 -0.398" size="0.005"/>
+            </body>
+          </body>
+        </body>
+      </body>
+      
+      <!-- ========== LIMB 3 (φ = 240°) ========== -->
+      <body name="motor3_body" pos="-0.02099 -0.01212 -0.0416" euler="0 0 240">
+        <joint name="motor3" type="hinge" axis="1 0 0" 
+               range="-60 60" ref="-12.68" damping="0.5"/>
+        <inertial pos="0 0 0" mass="0.03" diaginertia="1e-5 1e-5 1e-5"/>
+        <geom name="motor3_geom" type="sphere" size="0.018" material="motor_mat"/>
+        
+        <body name="upper3_body" pos="0 0.094 0">
+          <inertial pos="0 0.047 0" mass="0.06" diaginertia="3e-4 1e-5 3e-4"/>
+          <geom name="upper3_geom" type="capsule" fromto="0 -0.094 0 0 0.094 0" 
+                size="0.012" material="upper_mat"/>
+          
+          <body name="knee3_body" pos="0 0.094 0">
+            <joint name="knee3_x" type="hinge" axis="1 0 0" range="-80 80" damping="0.1"/>
+            <joint name="knee3_y" type="hinge" axis="0 1 0" range="-80 80" damping="0.1"/>
+            <joint name="knee3_z" type="hinge" axis="0 0 1" range="-80 80" damping="0.1"/>
+            <inertial pos="0 0 0" mass="0.02" diaginertia="1e-5 1e-5 1e-5"/>
+            <geom name="knee3_geom" type="sphere" size="0.015" material="knee_mat"/>
+            
+            <body name="lower3_body" pos="0 0 0">
+              <inertial pos="0 0 -0.199" mass="0.12" diaginertia="6e-4 6e-4 1e-5"/>
+              <geom name="lower3_geom" type="capsule" fromto="0 0 0 0 0 -0.398" 
+                    size="0.010" material="lower_mat"/>
+              <site name="lower3_tip" pos="0 0 -0.398" size="0.005"/>
+            </body>
+          </body>
+        </body>
+      </body>
+      
+    </body>
+  </worldbody>
+  
+  <!-- ========== CLOSED-LOOP CONSTRAINTS ========== -->
+  <!-- Connect limbs 2 and 3 to the foot (limb 1 has foot attached) -->
+  <equality>
+    <connect name="loop2" body1="lower2_body" body2="foot_link" 
+             anchor="0 0 -0.398" solref="0.002 1" solimp="0.95 0.99 0.001"/>
+    <connect name="loop3" body1="lower3_body" body2="foot_link" 
+             anchor="0 0 -0.398" solref="0.002 1" solimp="0.95 0.99 0.001"/>
+  </equality>
+  
+  <!-- ========== ACTUATORS ========== -->
+  <actuator>
+    <motor name="motor1_act" joint="motor1" gear="1" ctrlrange="-15 15"/>
+    <motor name="motor2_act" joint="motor2" gear="1" ctrlrange="-15 15"/>
+    <motor name="motor3_act" joint="motor3" gear="1" ctrlrange="-15 15"/>
+  </actuator>
+  
+  <!-- ========== SENSORS ========== -->
+  <sensor>
+    <accelerometer name="imu_accel" site="imu_site"/>
+    <gyro name="imu_gyro" site="imu_site"/>
+    <framequat name="imu_quat" objtype="body" objname="base_link"/>
+    <jointpos name="motor1_pos" joint="motor1"/>
+    <jointpos name="motor2_pos" joint="motor2"/>
+    <jointpos name="motor3_pos" joint="motor3"/>
+    <touch name="foot_touch" site="foot_site"/>
+  </sensor>
+  
+  <!-- ========== KEYFRAME ========== -->
+  <keyframe>
+    <key name="home" qpos="0 0 0.6 1 0 0 0  0 0 0 0  0 0 0 0  0 0 0 0"/>
+  </keyframe>
+  
+</mujoco>

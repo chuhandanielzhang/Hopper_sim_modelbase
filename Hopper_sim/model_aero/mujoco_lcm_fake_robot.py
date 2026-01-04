@@ -37,10 +37,12 @@ Important semantic parity with the real robot code (`Hopper-aero/src/hardware/ho
 Usage
 -----
 Terminal A (fake robot / MuJoCo):
-  python3 /home/abc/Hopper/Hopper-aero/hopper_controller/mujoco_lcm_fake_robot.py --arm
+  cd Hopper_sim/model_aero
+  python3 mujoco_lcm_fake_robot.py --arm
 
 Terminal B (your real controller):
-  python3 /home/abc/Hopper/Hopper-aero/hopper_controller/run_modee.py
+  cd Hopper_sim/model_aero
+  python3 run_modee.py
 """
 
 from __future__ import annotations
@@ -294,12 +296,13 @@ def _add_world_line_to_scene(
 
 
 def main() -> None:
+    default_model = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "mjcf", "hopper_serial.xml"))
     ap = argparse.ArgumentParser()
     ap.add_argument(
         "--model",
         type=str,
-        default="/home/abc/Hopper/Hopper-aero/model/hopper_serial.xml",
-        help="MuJoCo MJCF path. Recommended: hopper_serial.xml (serial-equivalent roll/pitch/shift plant).",
+        default=default_model,
+        help="MuJoCo MJCF path. Recommended: Hopper_sim/mjcf/hopper_serial.xml (serial-equivalent roll/pitch/shift plant).",
     )
     ap.add_argument("--lcm-url", type=str, default="udpm://239.255.76.67:7667?ttl=255")
     ap.add_argument("--duration-s", type=float, default=0.0, help="<=0 means run forever.")

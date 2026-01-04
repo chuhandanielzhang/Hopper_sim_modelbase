@@ -1,91 +1,99 @@
 # Hopper_sim
 
-Hopper 机器人仿真环境集合，包含两种不同的仿真模型。
+Hopper 机器人仿真环境集合（**3 个模型**），用于复现/对比：
+
+- **ModeE (Hopper-aero / LCM)**：MuJoCo 里跑“假机器人”进程，通过 LCM 跑真实 ModeE 控制器（本仓库内拷贝，独立可运行）。
+- **Hopper4 LEG-only (LCM)**：Hopper4 虚拟弹簧 + Raibert（只用腿，不启用螺旋桨）。
+- **Hopper4 PROP (LCM)**：Hopper4 介入螺旋桨（自动 ARM，飞行段姿态 PD + 分配）。
+
+## 🎬 Demo 视频（README 可直接点开）
+
+- **Model 1 — ModeE (serial) in-place hop**
+
+[![ModeE serial](videos/modee_serial_inplace_thumb.png)](videos/modee_serial_inplace.mp4)
+
+- **Model 2 — Hopper4 LEG-only in-place hop**
+
+[![Hopper4 leg-only](videos/hopper4_leg_inplace_thumb.png)](videos/hopper4_leg_inplace.mp4)
+
+- **Model 3 — Hopper4 PROP in-place hop**
+
+[![Hopper4 prop](videos/hopper4_prop_inplace_thumb.png)](videos/hopper4_prop_inplace.mp4)
 
 ## 📁 目录结构
 
 ```
 Hopper_sim/
-├── model_aero/          # LCM 虚拟通信的 Hopper-aero 仿真
-│   ├── mujoco_lcm_fake_robot.py    # MuJoCo 仿真 + LCM 通信
-│   ├── forward_kinematics.py       # 正运动学
-│   └── motor_utils.py              # 电机模型（PWM ↔ 推力）
+├── hopper_lcm_types/               # LCM 消息定义（Python 生成代码）
+├── mjcf/                           # MuJoCo 模型（serial + 3RSR）+ meshes
+├── videos/                         # README 展示用 MP4 + 缩略图
 │
-└── model_spring/        # Mode1 虚拟弹簧控制器（成功的 Raibert 实现）
-    ├── controllers/
-    │   └── raibert_controller.py   # Raibert + 虚拟弹簧控制器
-    ├── scripts/
-    │   ├── run_raibert_mj.py       # 主运行脚本
-    │   └── record_task1.sh          # Task1 录制脚本
-    ├── config/
-    │   └── hopper_config.py        # 机器人参数配置
-    └── mjcf/
-        └── hopper_serial.xml        # MuJoCo 串联腿模型
+├── model_aero/                     # Model 1: ModeE + MuJoCo fake-robot (LCM)
+│   ├── mujoco_lcm_fake_robot.py
+│   ├── run_modee.py
+│   └── record_modee_serial_inplace.sh
+│
+├── model_spring/                   # Model 2: Hopper4 LEG-only (LCM)
+│   ├── Hopper4.py
+│   ├── run_hopper4_leg_sim.py
+│   └── record_hopper4_leg_inplace.sh
+│
+└── model_hopper4_prop/             # Model 3: Hopper4 PROP (LCM)
+    ├── Hopper4.py
+    ├── run_hopper4_prop_sim.py
+    └── record_hopper4_prop_inplace.sh
 ```
 
-## 🚀 model_aero: LCM 虚拟通信仿真
+## 🚀 Model 1: `model_aero`（ModeE / serial fixed）
 
-### 功能
-- 使用 MuJoCo 仿真机器人物理
-- 通过 LCM 与 ModeE 控制器通信（完全兼容真机 LCM 协议）
-- 可以运行真实的 `run_modee.py` 控制器进行测试
+### 一键录制（推荐）
 
-### 使用方法
-
-**终端 1 (仿真机器人):**
 ```bash
 cd Hopper_sim/model_aero
+bash record_modee_serial_inplace.sh
+```
+
+输出会写到：
+
+- `Hopper_sim/videos/modee_serial_inplace.mp4`
+
+### 手动运行（两个终端）
+
+```bash
+# Terminal A
+cd Hopper_sim/model_aero
 python3 mujoco_lcm_fake_robot.py --arm --viewer
+
+# Terminal B
+cd Hopper_sim/model_aero
+python3 run_modee.py --leg-model serial --tau-out-max 2500
 ```
 
-**终端 2 (ModeE 控制器):**
-```bash
-cd Hopper-aero/hopper_controller
-python3 run_modee.py
-```
+## 🦵 Model 2: `model_spring`（Hopper4 LEG-only / LCM）
 
-### 特点
-- ✅ 完全兼容真机 LCM 消息格式
-- ✅ 支持 `hopper_data_lcmt`, `hopper_imu_lcmt`, `gamepad_lcmt`
-- ✅ 支持 `hopper_cmd_lcmt`, `motor_pwm_lcmt` 命令
-- ✅ 可以录制视频 (`--record-mp4`)
-- ✅ 支持 HUD 显示 (`--hud`)
+### 一键录制
 
-## 🌸 model_spring: Mode1 虚拟弹簧控制器
-
-### 功能
-- Raibert 足端放置 + 虚拟弹簧控制
-- 成功的跳跃实现（Task1 优化参数）
-- 支持键盘控制
-
-### 使用方法
-
-**运行仿真:**
 ```bash
 cd Hopper_sim/model_spring
-python3 scripts/run_raibert_mj.py
+bash record_hopper4_leg_inplace.sh
 ```
 
-**录制 Task1 视频:**
+输出会写到：
+
+- `Hopper_sim/videos/hopper4_leg_inplace.mp4`
+
+## 🚁 Model 3: `model_hopper4_prop`（Hopper4 PROP / LCM）
+
+### 一键录制
+
 ```bash
-cd Hopper_sim/model_spring
-bash scripts/record_task1.sh
+cd Hopper_sim/model_hopper4_prop
+bash record_hopper4_prop_inplace.sh
 ```
 
-### 键盘控制
-- `Y`: +X 速度（前进）
-- `H`: -X 速度（后退）
-- `G`: -Y 速度（左移）
-- `J`: +Y 速度（右移）
-- `Space`: 速度归零
-- `R`: 重置机器人
-- `Q/ESC`: 退出
+输出会写到：
 
-### 特点
-- ✅ 虚拟弹簧控制（k=1500, b=45）
-- ✅ Raibert 足端放置（Kv=0.08, Kr=0.012）
-- ✅ 姿态控制（hip torque）
-- ✅ 成功的 Task1 实现（0.3m/s 前进 + 原地跳）
+- `Hopper_sim/videos/hopper4_prop_inplace.mp4`
 
 ## 📝 依赖
 
@@ -95,19 +103,13 @@ bash scripts/record_task1.sh
 - MuJoCo Python bindings
 - LCM (Lightweight Communications and Marshalling)
 
-### model_aero 额外依赖
-- `hopper_lcm_types` (LCM 消息定义)
-- `modee.controllers.motor_utils` (电机模型)
-
-### model_spring 额外依赖
-- `controllers.com_filter` (互补滤波器)
-- `utils.mujoco_interface` (MuJoCo 接口)
-- `utils.state_estimator` (状态估计器)
+### 说明
+- `Hopper_sim/videos/` 里的 MP4 很小（用于 README 展示），可以直接 commit 到 GitHub。
 
 ## 🔗 相关项目
 
-- **Hopper-aero**: 真机控制代码 (`/home/abc/Hopper/Hopper-aero/`)
-- **Hopper-mujoco**: 完整 MuJoCo 仿真环境 (`/home/abc/Hopper/Hopper-mujoco/`)
+- **Hopper-aero**: 真机控制代码（ModeE 原始来源）
+- **Hopper-mujoco**: 3RSR/serial MJCF 来源
 
 ## 📚 参考
 
